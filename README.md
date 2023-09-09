@@ -12,11 +12,18 @@ Install as modules
 
 Just run
 
-  mkdir -p linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core
+  `mkdir -p linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core` (amd64-linux)
+  
+  `mkdir -p linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core` (armv8-orangepi-linux)
 
-  cp /usr/src/linux-source-"$(uname -r | cut -d'-' -f1)"/include/linux/usb/hcd.h linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core/
+  
+  `cp /usr/src/linux-source-"$(uname -r | cut -d'-' -f1)"/include/linux/usb/hcd.h linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core/` (amd64-linux)
 
-  make KVERSION="$(uname -r)" KSRC=/usr/src/linux-source-"$(uname -r | cut -d'-' -f1)"
+  `cp /usr/src/linux-source-"$(uname -r | cut -d'-' -f1 | cut -d'.' -f1,2)"/include/linux/usb/hcd.h linux/"$(uname -r | cut -d'-' -f1)"/drivers/usb/core/` (armv8-orangepi-linux)
+
+  `make KVERSION="$(uname -r)" KSRC=/usr/src/linux-source-"$(uname -r | cut -d'-' -f1)"` (amd64-linux)
+
+  `make KVERSION="$(uname -r)" KSRC=/usr/src/linux-source-"$(uname -r | cut -d'-' -f1 | cut -d'.' -f1,2)"` (armv8-orangepi-linux)
 
 or
 
