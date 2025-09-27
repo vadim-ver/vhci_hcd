@@ -15,3 +15,8 @@ modules.order
 /*.tar.gz
 /html
 *~
+.usb-vhci-hcd.o.d
+test/.Module.symvers.cmd
+test/.modules.order.cmd
+test/test.mod
+test/.test.mod.cmd
