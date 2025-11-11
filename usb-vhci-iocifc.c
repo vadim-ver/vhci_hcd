@@ -20,8 +20,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <linux/uaccess.h>
+// #define DEBUG
 
+// Kernel version, 4 or 5, needs for access_ok function change from 5 kernel
+// set 4 for 4 kernel, set 5 for 5 kernel
+// Sets from Makefile
+// #define KERNEL_VER 4
+
+//#include <linux/uaccess.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
@@ -160,7 +166,6 @@ static void trigger_work_event(struct usb_vhci_device *vdev)
 
 static struct usb_vhci_ifc vhci_ioc_ifc = {
 	.ifc_desc      = "USB VHCI user-mode IOCTL-interface",
-	.owner         = THIS_MODULE,
 	.ifc_priv_size = sizeof(struct vhci_ifc_priv),
 
 #ifdef DEBUG
@@ -207,24 +212,24 @@ static int ioc_register(struct file *file, struct usb_vhci_ioc_register __user *
 	file->private_data = vdev;
 
 	// copy id to user space
-	__put_user(usb_vhci_dev_id(vdev), &arg->id);
+	put_user(usb_vhci_dev_id(vdev), &arg->id);
 
 	// copy bus-id to user space
 	dname = usb_vhci_dev_name(vdev);
 	i = strlen(dname);
 	i = (i < sizeof(arg->bus_id)) ? i : sizeof(arg->bus_id) - 1;
-	if(copy_to_user(arg->bus_id, dname, i))
+//	if(copy_to_user(arg->bus_id, dname, i))
+	if(raw_copy_to_user(arg->bus_id, dname, i))
 	{
 		vhci_printk(KERN_WARNING, "Failed to copy bus_id to userspace.\n");
-//		__put_user('\0', arg->bus_id);
-		__put_user('\0', arg->bus_id + 0);
+		put_user('\0', arg->bus_id+0);
 	}
 	// make sure the last character is null
-	__put_user('\0', arg->bus_id + i);
+	put_user('\0', arg->bus_id + i);
 
 	usbbusnum = usb_vhci_dev_busnum(vdev);
 	vhci_printk(KERN_INFO, "Usb bus #%d\n", usbbusnum);
-	__put_user(usbbusnum, &arg->usb_busnum);
+	put_user(usbbusnum, &arg->usb_busnum);
 
 	return 0;
 }
@@ -458,7 +463,8 @@ repeat:
 
 		__put_user(USB_VHCI_WORK_TYPE_PROCESS_URB, &arg->type);
 		__put_user(handle, &arg->handle);
-		if(unlikely(__copy_to_user(&arg->work.urb, &urb, sizeof urb)))
+//		if(unlikely(__copy_to_user(&arg->work.urb, &urb, sizeof urb)))
+		if(unlikely(raw_copy_to_user(&arg->work.urb, &urb, sizeof urb)))
 			return -EFAULT;
 		return 0;
 
@@ -596,11 +602,19 @@ static int ioc_giveback_common(struct usb_vhci_hcd *vhc, const void *handle, int
 		}
 		if(likely(iso_count))
 		{
+            #if KERNEL_VER<5
+            if(!access_ok(VERIFY_READ, (void *)iso, iso_count * sizeof(struct usb_vhci_ioc_iso_packet_giveback)))
+			{
+				retval = -EFAULT;
+				goto done_with_errors;
+			}
+			#else
 			if(!access_ok((void *)iso, iso_count * sizeof(struct usb_vhci_ioc_iso_packet_giveback)))
 			{
 				retval = -EFAULT;
 				goto done_with_errors;
 			}
+			#endif
 		}
 	}
 	else if(unlikely(act > urbp->urb->transfer_buffer_length))
@@ -621,7 +635,8 @@ static int ioc_giveback_common(struct usb_vhci_hcd *vhc, const void *handle, int
 			retval = -EINVAL;
 			goto done_with_errors;
 		}
-		if(unlikely(copy_from_user(urbp->urb->transfer_buffer, buf, act)))
+//		if(unlikely(copy_from_user(urbp->urb->transfer_buffer, buf, act)))
+		if(unlikely(raw_copy_from_user(urbp->urb->transfer_buffer, buf, act)))
 		{
 #ifdef DEBUG
 			if(debug_output) dev_dbg(dev, "GIVEBACK: copy_from_user(buf) failed\n");
@@ -801,7 +816,8 @@ static int ioc_fetch_data_common(struct usb_vhci_hcd *vhc, const void *handle, v
 
 	if(likely(is_iso && iso_count))
 	{
-		if(unlikely(copy_to_user(iso, iso_tmp, iso_count * sizeof *iso_tmp)))
+//		if(unlikely(copy_to_user(iso, iso_tmp, iso_count * sizeof *iso_tmp)))
+		if(unlikely(raw_copy_to_user(iso, iso_tmp, iso_count * sizeof *iso_tmp)))
 		{
 			ret = -EFAULT;
 			goto end;
@@ -810,7 +826,8 @@ static int ioc_fetch_data_common(struct usb_vhci_hcd *vhc, const void *handle, v
 
 	if(likely(!is_in && tb_len))
 	{
-		if(unlikely(copy_to_user(user_buf, user_buf_tmp, tb_len)))
+//		if(unlikely(copy_to_user(user_buf, user_buf_tmp, tb_len)))
+		if(unlikely(raw_copy_to_user(user_buf, user_buf_tmp, tb_len)))
 		{
 			ret = -EFAULT;
 			goto end;
@@ -934,10 +951,17 @@ static long device_do_ioctl(struct file *file,
 	if(unlikely(_IOC_TYPE(cmd) != USB_VHCI_HCD_IOC_MAGIC)) return -ENOTTY;
 	if(unlikely(_IOC_NR(cmd) > USB_VHCI_HCD_IOC_MAXNR)) return -ENOTTY;
 
+	#if KERNEL_VER<5
+    if(unlikely((_IOC_DIR(cmd) & _IOC_READ) && !access_ok(VERIFY_WRITE, arg, _IOC_SIZE(cmd))))
+		return -EFAULT;
+	if(unlikely((_IOC_DIR(cmd) & _IOC_WRITE) && !access_ok(VERIFY_READ, arg, _IOC_SIZE(cmd))))
+		return -EFAULT;
+    #else
 	if(unlikely((_IOC_DIR(cmd) & _IOC_READ) && !access_ok(arg, _IOC_SIZE(cmd))))
 		return -EFAULT;
 	if(unlikely((_IOC_DIR(cmd) & _IOC_WRITE) && !access_ok(arg, _IOC_SIZE(cmd))))
 		return -EFAULT;
+    #endif
 
 	if(unlikely(cmd == USB_VHCI_HCD_IOCREGISTER))
 		return ioc_register(file, (struct usb_vhci_ioc_register __user *)arg);
@@ -1012,7 +1036,6 @@ static loff_t device_llseek(struct file *file, loff_t offset, int origin)
 }
 
 static struct file_operations fops = {
-	.owner          = THIS_MODULE,
 	.llseek         = device_llseek,
 	.read           = device_read,
 	.write          = device_write,
@@ -1058,8 +1081,7 @@ static DRIVER_ATTR_RW(debug_output);
 
 static struct platform_driver vhci_iocifc_driver = {
 	.driver = {
-		.name   = driver_name,
-		.owner  = THIS_MODULE
+		.name   = driver_name
 	}
 };
 
@@ -1070,7 +1092,6 @@ static void vhci_iocifc_device_release(struct device *dev)
 static int vhci_iocifc_major;
 
 static struct class vhci_iocifc_class = {
-	.owner = THIS_MODULE,
 	.name = driver_name
 };
 

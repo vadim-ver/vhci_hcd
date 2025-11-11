@@ -931,7 +931,7 @@ static int vhci_hcd_probe(struct platform_device *pdev)
 	return retval;
 }
 
-static int vhci_hcd_remove(struct platform_device *pdev)
+static void vhci_hcd_remove(struct platform_device *pdev)
 {
 	unsigned long flags;
 	struct usb_hcd *hcd;
@@ -982,7 +982,6 @@ static int vhci_hcd_remove(struct platform_device *pdev)
 		vdev->ifc->destroy(vhcidev_to_ifc(vdev));
 	}
 
-	return 0;
 }
 
 static int vhci_hcd_suspend(struct platform_device *pdev, pm_message_t state)

@@ -15,6 +15,7 @@ KVERSION = $(shell uname -r)
 KVERSION_VERSION = $(shell echo $(KVERSION) | ( awk -F - '{ ORS = ""; print $$1 }'; echo '.0.0.0' ) | awk -F . '{ print $$1 }')
 KVERSION_PATCHLEVEL = $(shell echo $(KVERSION) | ( awk -F - '{ ORS = ""; print $$1 }'; echo '.0.0.0' ) | awk -F . '{ print $$2 }')
 KVERSION_SUBLEVEL = $(shell echo $(KVERSION) | ( awk -F - '{ ORS = ""; print $$1 }'; echo '.0.0.0' ) | awk -F . '{ print $$3 }')
+KERNEL_VER=$(KVERSION_VERSION)
 KDIR = $(BUILD_PREFIX)/lib/modules/$(KVERSION)/build
 PWD = $(shell pwd)
 INSTALL_DIR = $(INSTALL_PREFIX)/lib/modules/$(KVERSION)
@@ -106,6 +107,7 @@ testconfig: testcc
 	echo "#define USB_VHCI_HCD_DATE \"$(shell date +"%F")\"" >>$(CONF_H)
 	echo "#define USB_VHCI_IOCIFC_VERSION \"$(USB_VHCI_IOCIFC_VERSION)\"" >>$(CONF_H)
 	echo "#define USB_VHCI_IOCIFC_DATE USB_VHCI_HCD_DATE" >>$(CONF_H)
+	echo "#define KERNEL_VER $(KVERSION_VERSION)" >>$(CONF_H)
 	$(MAKE) clean-test
 	if $(call TESTMAKE,-DTEST_GIVEBACK_MECH) >/dev/null 2>&1; then \
 		echo "//#define OLD_GIVEBACK_MECH" >>$(CONF_H); \
